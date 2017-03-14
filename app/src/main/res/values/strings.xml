@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Flux test</string>
+    <string name="port">Port</string>
+    <string name="baud">Baud</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="reset">Reset</string>
+    <string name="cancel">Cancel</string>
+    <string name="Ok">Ok</string>
+    <string name="port_placeholder">Port Name</string>
+    <string name="baud_placeholder">9600</string>
+    <string name="setting">Setting</string>
+
+    <string-array name="baud_array">
+        <item>9600</item>
+        <item>19200</item>
+        <item>115200</item>
+        <item>250000</item>
+        <item>384000</item>
+        <item>500000</item>
+        <item>1000000</item>
+    </string-array>
+</resources>
