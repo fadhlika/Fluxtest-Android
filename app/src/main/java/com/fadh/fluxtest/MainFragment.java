@@ -105,9 +105,17 @@ public class MainFragment extends Fragment {
 
         mSeries1 = new LineGraphSeries<>();
         graph.addSeries(mSeries1);
+
+        graph.getViewport().setScrollable(true);
+        graph.getViewport().setScalable(true);
+
         graph.getViewport().setXAxisBoundsManual(true);
         graph.getViewport().setMinX(0);
-        graph.getViewport().setMaxX(40);
+        graph.getViewport().setMaxX(50);
+
+        graph.getViewport().setYAxisBoundsManual(true);
+        graph.getViewport().setMinY(0.0);
+        graph.getViewport().setMaxY(2.0);
 
         dataList = new ArrayList<>();
         adapter = new DataAdapter(getContext(), dataList);
@@ -141,7 +149,7 @@ public class MainFragment extends Fragment {
                 x += ((65535 * ovf) + counter) * 0.000064;
                 Data newData = new Data(x, y);
                 adapter.add(newData);
-                mSeries1.appendData(new DataPoint(newData.interval, newData.height), true, 40);
+                mSeries1.appendData(new DataPoint(newData.interval, newData.height), false, 20);
                 Log.d("insertData", x + " " + y);
             }
         } catch (Exception e) {
@@ -166,6 +174,8 @@ public class MainFragment extends Fragment {
                     }
                 }
             case R.id.reset_action:
+                mSeries1.resetData(new DataPoint[]{});
+                adapter.clear();
                 break;
             case R.id.setting_action:
             default:
