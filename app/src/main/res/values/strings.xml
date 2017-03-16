@@ -10,6 +10,8 @@
     <string name="port_placeholder">Port Name</string>
     <string name="baud_placeholder">9600</string>
     <string name="setting">Setting</string>
+    <string name="pick">Pick Device</string>
+    <string name="no_bluetooth">Bluetooth is not available</string>
 
     <string-array name="baud_array">
         <item>9600</item>

@@ -1,10 +1,9 @@
 package com.fadh.fluxtest;
 
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.util.Log;
@@ -14,28 +13,34 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.Toast;
 
-import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
+import com.fadh.fluxtest.Adapter.DataAdapter;
+import com.fadh.fluxtest.Model.Data;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
-import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 
-import static android.content.ContentValues.TAG;
+import app.akexorcist.bluetotohspp.library.BluetoothSPP;
+import app.akexorcist.bluetotohspp.library.BluetoothState;
+import app.akexorcist.bluetotohspp.library.DeviceList;
 
 
 /**
  * A simple {@link Fragment} subclass.
  */
 public class MainFragment extends Fragment {
-    private static String data = "";
     private final String ACTION_USB_PERMISSION = "com.fadh.fluxtest.USB_PERMISSION";
+    DataAdapter adapter;
+    double x = 0.0;
+    BluetoothSPP bt;
+    MenuItem item;
     private LineGraphSeries<DataPoint> mSeries1;
-    private SerialPort serialPort;
-    private SerialHandler handler;
+    private ArrayList<Data> dataList;
 
     public MainFragment() {
         // Required empty public constructor
@@ -46,9 +51,11 @@ public class MainFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         setHasOptionsMenu(true);
+    }
 
-        handler = new SerialHandler(this);
-        serialPort = new SerialPort(getContext(), handler);
+    @Override
+    public void onStart() {
+        super.onStart();
     }
 
     @Override
@@ -56,6 +63,43 @@ public class MainFragment extends Fragment {
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_main, container, false);
+
+
+        bt = new BluetoothSPP(getContext());
+        bt.setupService();
+        bt.startService(BluetoothState.DEVICE_OTHER);
+
+        bt.setOnDataReceivedListener(new BluetoothSPP.OnDataReceivedListener() {
+            @Override
+            public void onDataReceived(byte[] data, String message) {
+                insertData(message);
+                Log.d("onDataReceived", new String(data) + "," + message);
+            }
+        });
+
+        bt.setBluetoothConnectionListener(new BluetoothSPP.BluetoothConnectionListener() {
+
+            @Override
+            public void onDeviceConnected(String name, String address) {
+                Log.d("onDeviceConnected", name);
+                Toast.makeText(getActivity().getApplicationContext(),
+                        bt.getConnectedDeviceName() + " connected", Toast.LENGTH_SHORT).show();
+                item.setTitle(R.string.disconnect);
+            }
+
+            @Override
+            public void onDeviceDisconnected() {
+                Log.d("onDeviceConnected", "disconnected");
+                Toast.makeText(getContext(), "Device disconnected", Toast.LENGTH_SHORT).show();
+                item.setTitle(R.string.connect);
+            }
+
+            @Override
+            public void onDeviceConnectionFailed() {
+                Log.d("onDeviceConnectedFailed", "failed");
+            }
+        });
+
 
         GraphView graph = (GraphView) view.findViewById(R.id.line_chart);
 
@@ -65,34 +109,43 @@ public class MainFragment extends Fragment {
         graph.getViewport().setMinX(0);
         graph.getViewport().setMaxX(40);
 
-        return view;
-    }
+        dataList = new ArrayList<>();
+        adapter = new DataAdapter(getContext(), dataList);
 
-    public void connectSerial() {
-        if (serialPort != null) {
-            serialPort.getPort();
-        } else {
-            Log.d(TAG, "No serial port instance");
-        }
+        ListView dataListView = (ListView) view.findViewById(R.id.list_data);
+        dataListView.setAdapter(adapter);
+
+        return view;
     }
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        item = menu.getItem(1);
         super.onCreateOptionsMenu(menu, inflater);
+    }
+
+    @Override
+    public void onDestroy() {
+        bt.disconnect();
+        Log.d("onDestroy", "Destroy");
+        super.onDestroy();
     }
 
     public void insertData(String d) {
         try {
-            //Data newData = new Data(Integer.parseInt(d[0]), Integer.parseInt(d[1]));
-            String[] v = d.split(",");
-            if (v.length > 1) {
-                long x = Long.parseLong(v[0]);
-                double y = Double.parseDouble(v[1]);
-                mSeries1.appendData(new DataPoint(x, y), true, 40);
+            String[] v = d.split(";");
+            if (v.length > 2) {
+                int y = Integer.parseInt(v[0]);
+                int ovf = Integer.parseInt(v[1]);
+                long counter = Long.parseLong(v[2]);
+                x += ((65535 * ovf) + counter) * 0.000064;
+                Data newData = new Data(x, y);
+                adapter.add(newData);
+                mSeries1.appendData(new DataPoint(newData.interval, newData.height), true, 40);
                 Log.d("insertData", x + " " + y);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.d("InsertData Exception", e.toString());
         }
     }
 
@@ -100,31 +153,21 @@ public class MainFragment extends Fragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.connect_action:
-                if (!serialPort.serialConnected) {
-                    connectSerial();
-                    item.setTitle(R.string.disconnect);
-                } else {
-                    item.setTitle(R.string.connect);
-                    serialPort.closeSerial();
+                if (!bt.isBluetoothEnabled()) {
+                    new MaterialDialog.Builder(getContext())
+                            .content("Please enable bluetooth")
+                            .show();
+                } else if (bt.isBluetoothEnabled()) {
+                    if (bt.getConnectedDeviceName() == null) {
+                        Intent intent = new Intent(getContext(), DeviceList.class);
+                        startActivityForResult(intent, BluetoothState.REQUEST_CONNECT_DEVICE);
+                    } else {
+                        bt.disconnect();
+                    }
                 }
-                break;
             case R.id.reset_action:
-                //usbService.reset();
                 break;
             case R.id.setting_action:
-                new MaterialDialog.Builder(getContext())
-                        .title(R.string.setting)
-                        .customView(R.layout.setting_view, true)
-                        .positiveText(R.string.Ok)
-                        .negativeText(R.string.cancel)
-                        .onPositive(new MaterialDialog.SingleButtonCallback() {
-                            @Override
-                            public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
-                                EditText baudText = (EditText) dialog.getCustomView().findViewById(R.id.baud_rate_label);
-                                serialPort.changeBaud(Integer.parseInt(baudText.getText().toString()));
-                            }
-                        })
-                        .show();
             default:
                 break;
         }
@@ -132,36 +175,22 @@ public class MainFragment extends Fragment {
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        serialPort.destroyReceiver();
-    }
-
-    private static class SerialHandler extends Handler {
-        private final WeakReference<MainFragment> mFragment;
-
-        public SerialHandler(MainFragment fragment) {
-            mFragment = new WeakReference<MainFragment>(fragment);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            byte[] bytes = (byte[]) msg.obj;
-            String d = new String(bytes);
-            data += d;
-            Log.d("handeMessage", data);
-            try {
-                String[] splitter = data.split("\n");
-                String s = splitter[splitter.length - 1];
-                if (s.contains(",") && s.contains("\r")) {
-                    Log.d("handleMessage", s);
-                    mFragment.get().insertData(s.trim());
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == BluetoothState.REQUEST_CONNECT_DEVICE) {
+            if (resultCode == Activity.RESULT_OK) {
+                try {
+                    bt.connect(data);
+                } catch (Exception e) {
+                    Log.d("Connect", e.toString());
                 }
-            } catch (IndexOutOfBoundsException e) {
-                e.printStackTrace();
             }
-
+        } else if (requestCode == BluetoothState.REQUEST_ENABLE_BT) {
+            if (resultCode == Activity.RESULT_OK) {
+                bt.setupService();
+                bt.startService(BluetoothState.DEVICE_OTHER);
+                Log.d("Connecet", "setup");
+            }
         }
-    }
 
+    }
 }

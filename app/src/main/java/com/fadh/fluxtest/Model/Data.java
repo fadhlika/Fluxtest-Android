@@ -5,25 +5,13 @@ package com.fadh.fluxtest.Model;
  */
 
 public class Data {
-    int level;
-    float height;
-    float interval;
+    public int level;
+    public double height;
+    public double interval;
 
-    public Data(int l, float i) {
+    public Data(double i, int l) {
         level = l;
-        height = (float) (2 - (l * 0.05));
+        height = (2 - (l * 0.05));
         interval = i;
-    }
-
-    public int getLevel() {
-        return level;
-    }
-
-    public float getHeight() {
-        return height;
-    }
-
-    public float getInterval() {
-        return interval;
     }
 }
